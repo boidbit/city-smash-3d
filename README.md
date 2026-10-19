@@ -16,7 +16,9 @@ Pressing **Start** plays a short skippable intro (once per launch) as one contin
 
 All of these numbers are constants near the top of the `levels` section in `index.html`.
 
-**[Play it in your browser](https://talibmohd0099.github.io/city-smash-3d/)**
+**[Play it in your browser](https://boidbit.github.io/city-smash-3d/)**
+
+**[Privacy policy](https://boidbit.github.io/city-smash-3d/privacy.html)** (use this URL in Play Console)
 
 ## Monster Dash mode
 
