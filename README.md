@@ -32,17 +32,15 @@ The start screen also offers **Monster Dash**, an endless 3-lane runner with the
 - `index.html` / `www/index.html` — the game itself (single self-contained HTML file)
 - `monster-dash/index.html` / `www/monster-dash/index.html` — the Monster Dash mode (also a single self-contained HTML file)
 - `android/` — the Capacitor-generated Android project
-- `.github/workflows/build-apk.yml` — builds a debug APK on every push to `main`
+- `.github/workflows/build-apk.yml` — builds a signed release APK and Play Store AAB
 
-## Getting the APK
+## Getting the APK / AAB
 
-Every push to `main` builds a fresh debug APK, automatically:
+Every push to `main` builds a signed release APK (published on the [Releases page](https://github.com/boidbit/city-smash-3d/releases)) and a Play Store AAB.
 
-- **Easiest — Releases:** go to the [Releases page](https://github.com/talibmohd0099/city-smash-3d/releases), open the latest one, and download `city-smash-3d.apk` directly.
-- **Alternative — Actions artifact:** open the **Actions** tab, click the latest successful **Build APK** run, and download the `city-smash-3d-debug-apk` artifact (comes zipped) from the bottom of the page.
+To make a build for the Play Store: **Actions → Build Release (APK + AAB) → Run workflow**, enter the version name (e.g. `1.2.0`) and, optionally, the version code (leave blank to use the run number), then download the `city-smash-3d-<version>-aab` artifact from the finished run and upload it in Play Console.
 
-Either way, copy the APK to an Android phone and install it (you'll need to allow installs from unknown sources).
-
+Signing needs these repository secrets: `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`.
 
 ### Building locally
 

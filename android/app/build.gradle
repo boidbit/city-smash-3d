@@ -1,22 +1,24 @@
 apply plugin: 'com.android.application'
 
-def buildNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "1") as Integer
+// CI passes VERSION_CODE / VERSION_NAME (see .github/workflows/build-apk.yml); local builds fall back to 1 / 1.0.1
+def buildNumber = (System.getenv("VERSION_CODE") ?: System.getenv("GITHUB_RUN_NUMBER") ?: "1") as Integer
+def appVersionName = System.getenv("VERSION_NAME") ?: "1.0.${buildNumber}"
 
 android {
-    namespace "com.talibmohd.citysmash3d"
-    compileSdk rootProject.ext.compileSdkVersion
+    namespace = "com.talibmohd.citysmash3d"
+    compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
         applicationId "com.talibmohd.citysmash3d"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        // Each CI build gets a higher version number so Android treats it as an update
+        // Play Store needs versionCode to go up with every upload; versionName is what users see
         versionCode buildNumber
-        versionName "1.0.${buildNumber}"
+        versionName appVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
-            ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
     // In CI the signing key comes from GitHub secrets (see .github/workflows/build-apk.yml), so every

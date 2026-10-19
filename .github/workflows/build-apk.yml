@@ -1,9 +1,22 @@
-name: Build APK
+name: Build Release (APK + AAB)
 
 on:
   push:
     branches: [main]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: "Version name shown to users, e.g. 1.2.0"
+        required: true
+        default: "1.0.0"
+      version_code:
+        description: "Version code (whole number, must be higher than your last Play upload). Leave blank to use the run number"
+        required: false
+        default: ""
+      create_release:
+        description: "Also publish the APK as a GitHub Release"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -11,26 +24,44 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      INPUT_VERSION_NAME: ${{ inputs.version_name }}
+      INPUT_VERSION_CODE: ${{ inputs.version_code }}
     steps:
+      - name: Work out version
+        run: |
+          # Pushes to main have no inputs: they get 1.0.<run number> so every build still installs as an update.
+          VERSION_CODE="${INPUT_VERSION_CODE:-$GITHUB_RUN_NUMBER}"
+          VERSION_NAME="${INPUT_VERSION_NAME:-1.0.$GITHUB_RUN_NUMBER}"
+          if ! [[ "$VERSION_CODE" =~ ^[1-9][0-9]*$ ]] || [ "$VERSION_CODE" -gt 2100000000 ]; then
+            echo "::error::version_code must be a whole number between 1 and 2100000000 (got '$VERSION_CODE')"; exit 1
+          fi
+          if ! [[ "$VERSION_NAME" =~ ^[0-9A-Za-z._-]+$ ]]; then
+            echo "::error::version_name may only contain letters, digits, dots, dashes and underscores (got '$VERSION_NAME')"; exit 1
+          fi
+          echo "VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
+          echo "VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
+          echo "### Building $VERSION_NAME (versionCode $VERSION_CODE)" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Check out code
         uses: actions/checkout@v4
 
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 17
+          java-version: 21
 
       - name: Accept Android SDK licenses
         run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null || true
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Copy latest games into www
         run: |
@@ -48,37 +79,54 @@ jobs:
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/city-smash.jks"
-            echo "SIGNING_STORE_FILE=$RUNNER_TEMP/city-smash.jks" >> "$GITHUB_ENV"
-          else
-            echo "::warning::KEYSTORE_BASE64 secret not set - APK signed with a throwaway key and won't install over older builds."
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::KEYSTORE_BASE64 secret is not set - Play Store builds must be signed with your upload key."
+            exit 1
           fi
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/city-smash.jks"
+          echo "SIGNING_STORE_FILE=$RUNNER_TEMP/city-smash.jks" >> "$GITHUB_ENV"
 
-      - name: Build debug APK
+      - name: Build signed release APK and AAB
         working-directory: android
         env:
           SIGNING_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           SIGNING_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           SIGNING_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: ./gradlew assembleDebug --no-daemon
+        run: ./gradlew assembleRelease bundleRelease --no-daemon
+
+      - name: Verify signatures
+        run: |
+          APKSIGNER=$(ls -d $ANDROID_HOME/build-tools/*/apksigner | sort -V | tail -1)
+          "$APKSIGNER" verify --print-certs android/app/build/outputs/apk/release/app-release.apk
+          jarsigner -verify android/app/build/outputs/bundle/release/app-release.aab
+
+      - name: Name the files
+        run: |
+          mkdir dist
+          cp android/app/build/outputs/apk/release/app-release.apk "dist/city-smash-3d-$VERSION_NAME.apk"
+          cp android/app/build/outputs/bundle/release/app-release.aab "dist/city-smash-3d-$VERSION_NAME.aab"
+
+      - name: Upload AAB (for Play Store)
+        uses: actions/upload-artifact@v4
+        with:
+          name: city-smash-3d-${{ env.VERSION_NAME }}-aab
+          path: dist/*.aab
+          if-no-files-found: error
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: city-smash-3d-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: city-smash-3d-${{ env.VERSION_NAME }}-apk
+          path: dist/*.apk
           if-no-files-found: error
 
-      - name: Rename APK for release
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk city-smash-3d.apk
-
       - name: Publish GitHub Release with APK
+        if: github.event_name == 'push' || inputs.create_release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
-          name: Build ${{ github.run_number }}
-          files: city-smash-3d.apk
+          name: ${{ env.VERSION_NAME }} (build ${{ github.run_number }})
+          files: dist/*.apk
           make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
