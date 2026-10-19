@@ -2,6 +2,6 @@
 <resources>
     <string name="app_name">City Smash 3D</string>
     <string name="title_activity_main">City Smash 3D</string>
-    <string name="package_name">com.talibmohd.citysmash3d</string>
-    <string name="custom_url_scheme">com.talibmohd.citysmash3d</string>
+    <string name="package_name">com.citysmash3d</string>
+    <string name="custom_url_scheme">com.citysmash3d</string>
 </resources>

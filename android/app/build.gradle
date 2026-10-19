@@ -5,10 +5,10 @@ def buildNumber = (System.getenv("VERSION_CODE") ?: System.getenv("GITHUB_RUN_NU
 def appVersionName = System.getenv("VERSION_NAME") ?: "1.0.${buildNumber}"
 
 android {
-    namespace = "com.talibmohd.citysmash3d"
+    namespace = "com.citysmash3d"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.talibmohd.citysmash3d"
+        applicationId "com.citysmash3d"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         // Play Store needs versionCode to go up with every upload; versionName is what users see

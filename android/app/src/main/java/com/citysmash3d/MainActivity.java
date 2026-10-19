@@ -1,4 +1,4 @@
-package com.talibmohd.citysmash3d;
+package com.citysmash3d;
 
 import com.getcapacitor.BridgeActivity;
 
