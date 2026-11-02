@@ -27,7 +27,9 @@ The start screen also offers **Monster Dash**, an endless 3-lane runner with the
 ## Controls
 
 - **Touch:** drag anywhere to move, tap **SMASH!** to slam the ground
-- **Keyboard:** WASD / arrow keys to move, Space to slam
+- **Keyboard:** WASD / arrow keys to move, Space to slam, Esc or P to pause
+- **Pause** (top-right button) to resume, restart the level, open settings or go back to the menu. The game also pauses by itself when the app goes to the background.
+- **Settings:** sound volume, vibration on/off, intro video on/off, and reset progress
 
 ## Project structure
 
@@ -49,6 +51,7 @@ Signing needs these repository secrets: `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, 
 ```bash
 npm install
 cp index.html www/index.html
+cp -r lib www/
 mkdir -p www/monster-dash && cp monster-dash/index.html www/monster-dash/index.html
 npx cap sync android
 cd android
@@ -60,3 +63,5 @@ The APK will be at `android/app/build/outputs/apk/debug/app-debug.apk`.
 ## Editing the game
 
 All City Smash code lives in `index.html`, and all Monster Dash code lives in `monster-dash/index.html`. After making changes, copy them into `www/` (as in the build steps above) before syncing Capacitor (the GitHub Actions workflow does this automatically).
+
+Both games work fully offline: Three.js (r128, MIT) and the Baloo 2 font (SIL OFL) are bundled in `lib/` with their licenses.

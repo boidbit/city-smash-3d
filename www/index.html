@@ -4,10 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>City Smash: 3D Rampage</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&display=swap" rel="stylesheet">
 <style>
+/* bundled with the game so it works offline (lib/baloo-2.LICENSE) */
+@font-face{font-family:'Baloo 2';font-style:normal;font-weight:400 800;font-display:swap;src:url(lib/baloo-2.woff2) format('woff2')}
 :root{
   --ink:#1D1B3A; --paper:#FFF8EE; --pink:#E84A8A; --teal:#1FA3A0;
   --haldi:#F2B632; --lime:#9BD13B; --danger:#E5484D;
@@ -37,7 +36,10 @@ canvas{position:fixed;inset:0;display:block}
 #hud .row{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
 #time{font-size:24px;min-width:74px;text-align:center}
 #time.low{background:var(--danger);color:#fff}
-#mute{pointer-events:auto;cursor:pointer;font:inherit;font-size:18px;padding:4px 10px}
+#mute,#pauseBtn{pointer-events:auto;cursor:pointer;font:inherit;font-size:18px;padding:4px 10px}
+#pauseBtn{width:46px;align-self:stretch;display:flex;align-items:center;justify-content:center}
+#pauseBtn::before{content:'';width:5px;height:16px;border-radius:2px;background:currentColor;box-shadow:9px 0 0 currentColor;margin-right:9px}
+#hud .btns{display:flex;gap:8px}
 .hp{width:min(46%,220px);height:22px;padding:0;overflow:hidden;position:relative}
 #hpfill{position:absolute;inset:0;width:100%;background:var(--lime);transition:width .2s}
 #hpfill.low{background:var(--danger)}
@@ -67,8 +69,22 @@ h2{margin:0 0 6px;font-size:30px;line-height:1.1;font-weight:800}
 .btn{margin-top:10px;font:inherit;font-weight:800;font-size:20px;padding:10px 22px;border-radius:16px;
   background:var(--haldi);color:var(--ink);border:3px solid var(--ink);box-shadow:0 5px 0 var(--ink);cursor:pointer}
 .btn:active{transform:translateY(4px);box-shadow:0 1px 0 var(--ink)}
-.btn:focus-visible,#mute:focus-visible,#stomp:focus-visible{outline:3px dashed var(--teal);outline-offset:4px}
+.btn:focus-visible,#mute:focus-visible,#pauseBtn:focus-visible,#stomp:focus-visible,.toggle:focus-visible,.link:focus-visible{outline:3px dashed var(--teal);outline-offset:4px}
 .hidden{display:none!important}
+#pauseScreen,#settingsScreen{z-index:10}
+#settingsScreen{background:rgba(29,27,58,.72)}
+.menu{display:flex;flex-direction:column;align-items:center;gap:4px}
+.btn.plain{background:var(--paper);font-size:18px;padding:8px 18px;min-width:190px}
+.btn.big{min-width:190px}
+.set{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 0;font-weight:700;font-size:17px;text-align:left}
+.set input[type=range]{flex:1;min-width:0;accent-color:var(--pink);height:28px}
+.set output{min-width:44px;text-align:right;font-weight:800}
+.toggle{font:inherit;font-weight:800;font-size:16px;min-width:72px;padding:4px 12px;border-radius:12px;border:3px solid var(--ink);
+  background:var(--lime);color:var(--ink);box-shadow:0 3px 0 var(--ink);cursor:pointer}
+.toggle[aria-pressed="false"]{background:#D8D2EE}
+.btn.danger{background:var(--paper);color:var(--danger);font-size:16px;padding:6px 14px}
+.btn.danger.confirm{background:var(--danger);color:#fff}
+.note{font-size:14px!important;color:var(--muted);min-height:1.4em;margin:4px 0 0!important}
 .link{margin-top:12px;font:inherit;font-weight:700;font-size:15px;background:none;border:0;color:var(--muted);text-decoration:underline;cursor:pointer}
 a.btn{display:inline-block;text-decoration:none}
 .btn.alt{background:var(--lime)}
@@ -139,7 +155,10 @@ a.btn{display:inline-block;text-decoration:none}
   <div class="row">
     <div class="chip" id="scoreChip"><span id="score">0</span><small>Score</small></div>
     <div class="chip" id="time">1:30</div>
-    <button class="chip" id="mute" aria-label="Mute or unmute sound">🔊</button>
+    <div class="btns">
+      <button class="chip" id="pauseBtn" aria-label="Pause"></button>
+      <button class="chip" id="mute" aria-label="Mute or unmute sound">🔊</button>
+    </div>
   </div>
   <div class="row">
     <div class="chip hp" aria-label="Monster's power"><div id="hpfill"></div><span>Power</span></div>
@@ -165,7 +184,7 @@ a.btn{display:inline-block;text-decoration:none}
     <p>Watch out for helicopter gunfire.</p>
     <p id="bestStart" class="hidden"></p>
     <button class="btn" id="startBtn">Start Game</button>
-    <p><button class="link hidden" id="restartBtn">Start over from Level 1</button></p>
+    <p><button class="link" id="settingsBtn">⚙ Settings</button> <button class="link hidden" id="restartBtn">Start over from Level 1</button></p>
     <p class="mode">Or try the endless runner mode:</p>
     <a class="btn alt" id="dashBtn" href="monster-dash/index.html">Play Monster Dash</a>
   </div>
@@ -184,6 +203,32 @@ a.btn{display:inline-block;text-decoration:none}
   </div>
 </div>
 
+<div class="overlay hidden" id="pauseScreen">
+  <div class="card">
+    <h2>Paused</h2>
+    <div class="menu">
+      <button class="btn big" id="resumeBtn">Resume</button>
+      <button class="btn plain" id="retryBtn">Restart Level</button>
+      <button class="btn plain" id="pauseSettingsBtn">Settings</button>
+      <button class="btn plain" id="quitBtn">Main Menu</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="settingsScreen">
+  <div class="card" role="dialog" aria-labelledby="settingsTitle">
+    <h2 id="settingsTitle">Settings</h2>
+    <div class="set"><label for="volRange">Sound</label><input type="range" id="volRange" min="0" max="100" step="5"><output id="volVal" for="volRange">80%</output></div>
+    <div class="set"><span id="vibLabel">Vibration</span><button class="toggle" id="vibBtn" aria-labelledby="vibLabel" aria-pressed="true">On</button></div>
+    <div class="set"><span id="introLabel">Intro video</span><button class="toggle" id="introBtn" aria-labelledby="introLabel" aria-pressed="true">On</button></div>
+    <div id="resetRow">
+      <button class="btn danger" id="resetBtn">Reset progress</button>
+      <p class="note" id="resetNote"></p>
+    </div>
+    <button class="btn big" id="settingsDone">Done</button>
+  </div>
+</div>
+
 <div id="cine" class="hidden">
   <div id="cineWindow"><i></i><i></i></div>
   <div id="cineCockpit"><div class="dash"><b></b><b></b><b></b></div></div>
@@ -192,7 +237,7 @@ a.btn{display:inline-block;text-decoration:none}
 </div>
 <canvas id="confetti"></canvas>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="lib/three.min.js"></script>
 <script>
 (function(){
 const $ = id => document.getElementById(id);
@@ -208,11 +253,14 @@ if(!isTouch) $('controlsText').textContent = 'Use WASD or arrow keys to move. Pr
 
 /* ---------- sound ---------- */
 const sfx = {
-  ctx:null, muted:false,
+  ctx:null, master:null, muted:false, volume:0.8,
   init(){
-    if(!this.ctx){ const AC = window.AudioContext || window.webkitAudioContext; if(AC){ try{ this.ctx = new AC(); }catch(e){} } }
-    if(this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+    if(!this.ctx){ const AC = window.AudioContext || window.webkitAudioContext; if(AC){ try{
+      this.ctx = new AC(); this.master = this.ctx.createGain(); this.master.connect(this.ctx.destination); this.apply();
+    }catch(e){} } }
+    if(this.ctx && this.ctx.state === 'suspended' && !game.paused) this.ctx.resume();
   },
+  apply(){ if(this.master) this.master.gain.value = this.muted ? 0 : this.volume; },
   noise(dur,freq,vol){
     const c=this.ctx; if(!c||this.muted) return;
     const len=Math.floor(c.sampleRate*dur), buf=c.createBuffer(1,len,c.sampleRate), d=buf.getChannelData(0);
@@ -220,14 +268,14 @@ const sfx = {
     const s=c.createBufferSource(); s.buffer=buf;
     const fl=c.createBiquadFilter(); fl.type='lowpass'; fl.frequency.value=freq;
     const g=c.createGain(); g.gain.value=vol;
-    s.connect(fl); fl.connect(g); g.connect(c.destination); s.start();
+    s.connect(fl); fl.connect(g); g.connect(this.master); s.start();
   },
   tone(f0,f1,dur,vol,type){
     const c=this.ctx; if(!c||this.muted) return;
     const t=c.currentTime, o=c.createOscillator(), g=c.createGain();
     o.type=type||'sine'; o.frequency.setValueAtTime(f0,t); o.frequency.exponentialRampToValueAtTime(f1,t+dur);
     g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(0.001,t+dur);
-    o.connect(g); g.connect(c.destination); o.start(t); o.stop(t+dur+0.02);
+    o.connect(g); g.connect(this.master); o.start(t); o.stop(t+dur+0.02);
   },
   bend(f0,f1,f2,dur,vol){
     const c=this.ctx; if(!c||this.muted) return;
@@ -239,7 +287,7 @@ const sfx = {
     g.gain.setValueAtTime(0.0001,t);
     g.gain.exponentialRampToValueAtTime(vol,t+dur*0.12);
     g.gain.exponentialRampToValueAtTime(0.001,t+dur);
-    o.connect(g); g.connect(c.destination); o.start(t); o.stop(t+dur+0.03);
+    o.connect(g); g.connect(this.master); o.start(t); o.stop(t+dur+0.03);
   },
   thud(punch){
     const p=clamp(punch||0,0,1);
@@ -261,6 +309,17 @@ const sfx = {
   coin(){ const n=performance.now(); if(n-(this._k||0)<70) return; this._k=n; this.tone(1320,1760,0.09,0.08,'triangle'); },
   win(){ [523,659,784,1047].forEach((f,i)=>setTimeout(()=>this.tone(f,f*1.01,i===3?0.5:0.16,0.25,'triangle'),i*130)); }
 };
+
+/* ---------- settings (saved on the device) ---------- */
+const settings = Object.assign({vol:80, vib:true, muted:false, intro:true},
+  (()=>{ try{ return JSON.parse(store.get('city-smash-settings')||'{}'); }catch(e){ return {}; } })());
+const saveSettings = () => store.set('city-smash-settings', JSON.stringify(settings));
+sfx.volume = settings.vol/100; sfx.muted = settings.muted;
+// short phone vibrations for big moments (Android; ignored where unsupported)
+function buzz(pattern){
+  if(!settings.vib || !navigator.vibrate) return;
+  try{ navigator.vibrate(pattern); }catch(e){}
+}
 
 /* ---------- renderer / scene ---------- */
 const renderer = new THREE.WebGLRenderer({antialias:true});
@@ -623,11 +682,11 @@ function destroyHeli(h){
   spawnDust(p.x,p.y,p.z,2.5);
   addScore(250,p.clone());
   scene.remove(h.g); helis=helis.filter(x=>x!==h);
-  sfx.boom(); addShake(0.3);
+  sfx.boom(); addShake(0.3); buzz([30,40,30]);
 }
 
 /* ---------- game state ---------- */
-const game={state:'start',level:1,builtLevel:0,time:90,maxTime:90,power:1,score:0,hp:100,size:1,vis:1,destroyed:0,combo:1,lastKill:-9,cd:0,hop:0,squash:0,heliT:0,shake:0,zoom:0,ended:0,toasted:{}};
+const game={state:'start',paused:false,level:1,builtLevel:0,time:90,maxTime:90,power:1,score:0,hp:100,size:1,vis:1,destroyed:0,combo:1,lastKill:-9,cd:0,hop:0,squash:0,heliT:0,shake:0,zoom:0,ended:0,toasted:{}};
 const camBase=new THREE.Vector3(60,45,60), shakeV=new THREE.Vector3(), lookAt=new THREE.Vector3();
 let orbitA=0;
 
@@ -689,16 +748,17 @@ function collapse(b){
   for(const th of [1.5,2,2.4]) if(growth>=th && !game.toasted[th]){ game.toasted[th]=1; toast('The monster grew bigger!'); }
   const sizeFactor=clamp(b.h/18,0,1);
   addShake(0.14+sizeFactor*0.32); addZoom(0.12+sizeFactor*0.38); sfx.pop(sizeFactor);
+  if(sizeFactor>0.5) buzz(25);
   if(game.destroyed>=buildings.length) endGame('all');
 }
 function hurt(n){
   if(game.state!=='play') return;
-  game.hp=Math.max(0,game.hp-n); sfx.hit(); addShake(0.15);
+  game.hp=Math.max(0,game.hp-n); sfx.hit(); addShake(0.15); buzz(60);
   const h=$('hurt'); h.style.transition='none'; h.style.opacity=1;
   requestAnimationFrame(()=>{ h.style.transition='opacity .35s'; h.style.opacity=0; });
   if(game.hp<=0) endGame('hp');
 }
-function stomp(){ if(game.state!=='play'||game.cd>0||game.hop>0) return; game.cd=1.1; game.hop=0.28; }
+function stomp(){ if(game.state!=='play'||game.paused||game.cd>0||game.hop>0) return; game.cd=1.1; game.hop=0.28; }
 function land(){
   const mp=M.root.position, R=3.5*game.size+1.5;
   ringT=0.45; ringR=R;
@@ -714,12 +774,11 @@ function land(){
   }
   for(let i=0;i<6;i++){ const a=i/6*Math.PI*2; spawnDust(mp.x+Math.cos(a)*2*game.vis,0.8,mp.z+Math.sin(a)*2*game.vis,1.2*game.vis); }
   game.squash=0.18; addShake(0.55); sfx.thud(clamp((game.size-1)/1.4,0,1));
+  buzz(Math.round(30+25*clamp((game.size-1)/1.4,0,1)));
 }
 
-function resetGame(){
-  if(game.builtLevel!==game.level){ buildCity(game.level); game.builtLevel=game.level; }
-  const power=monsterScale(game.level), maxTime=levelTime(game.level);
-  Object.assign(game,{state:'play',time:maxTime,maxTime,power,score:0,hp:100,size:power,vis:power,destroyed:0,combo:1,comboTotal:0,lastKill:-9,cd:0,hop:0,squash:0,heliT:4,shake:0,zoom:0,toasted:{},won:false,lastTick:0});
+// put every building back up and clear anything left over from the last run
+function restoreCity(){
   for(const b of buildings){ b.state='alive'; b.hp=b.maxHp; b.evac=0; b.smokeT=0; b.g.visible=true; b.g.position.set(b.x,0.3,b.z); b.g.rotation.set(0,0,0); b.pile.visible=false; }
   for(const h of helis) scene.remove(h.g); helis=[];
   for(const p of debris){ p.m.visible=false; p.life=0; }
@@ -730,9 +789,16 @@ function resetGame(){
   confetti.stop();
   M.root.position.set(0,0,0); M.root.rotation.y=0; M.root.scale.setScalar(1);
   M.armL.rotation.z=M.armR.rotation.z=0;
+}
+function resetGame(){
+  if(game.builtLevel!==game.level){ buildCity(game.level); game.builtLevel=game.level; }
+  const power=monsterScale(game.level), maxTime=levelTime(game.level);
+  Object.assign(game,{state:'play',time:maxTime,maxTime,power,score:0,hp:100,size:power,vis:power,destroyed:0,combo:1,comboTotal:0,lastKill:-9,cd:0,hop:0,squash:0,heliT:4,shake:0,zoom:0,toasted:{},won:false,lastTick:0});
+  restoreCity();
   camBase.set(0,16,16);
   $('hud').style.display='flex'; $('stomp').style.display='block';
   $('startScreen').classList.add('hidden'); $('endScreen').classList.add('hidden');
+  game.paused=false; $('pauseScreen').classList.add('hidden');
   $('lvl').textContent='Level '+game.level;
   toast('Level '+game.level+' · '+theme.name);
 }
@@ -756,7 +822,7 @@ function endGame(reason){
   const starEls=$('stars').children;
   for(let i=0;i<3;i++){ starEls[i].classList.toggle('on',i<stars); starEls[i].style.animationDelay=(0.25+i*0.35)+'s'; }
   $('stars').classList.toggle('hidden',!won); $('stars').setAttribute('aria-label',stars+' of 3 stars');
-  if(won){ game.celebT=0; sfx.win(); confetti.start(); }
+  if(won){ game.celebT=0; sfx.win(); confetti.start(); buzz([80,60,80,60,160]); } else buzz(220);
   $('endPct').textContent = won
     ? 'Every building smashed with '+Math.ceil(game.time)+'s to spare!'
     : 'Only '+left+' building'+(left===1?'':'s')+' left! ('+pct+'% destroyed)';
@@ -840,8 +906,85 @@ const keys=new Set();
 addEventListener('keydown',e=>{ keys.add(e.key.toLowerCase()); if(e.code==='Space'){ e.preventDefault(); stomp(); } });
 addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));
 addEventListener('contextmenu',e=>e.preventDefault());
-$('mute').addEventListener('click',()=>{ sfx.muted=!sfx.muted; $('mute').textContent=sfx.muted?'🔇':'🔊'; });
-$('startBtn').addEventListener('click',()=>{ sfx.init(); if(!introSeen) startIntro(); else resetGame(); });
+const showMute=()=>{ $('mute').textContent=sfx.muted?'🔇':'🔊'; };
+showMute();
+$('mute').addEventListener('click',()=>{ sfx.muted=settings.muted=!sfx.muted; sfx.apply(); saveSettings(); showMute(); });
+$('startBtn').addEventListener('click',()=>{ sfx.init(); if(!introSeen && settings.intro) startIntro(); else resetGame(); });
+
+/* ---------- pause ---------- */
+function pauseGame(){
+  if(game.paused || (game.state!=='play' && game.state!=='intro')) return;
+  game.paused=true; keys.clear();
+  if(joy.id!==null){ joy.id=null; joy.x=joy.y=0; joyEl.style.display='none'; }
+  if(sfx.ctx) sfx.ctx.suspend();
+  $('retryBtn').classList.toggle('hidden',game.state!=='play');
+  $('pauseScreen').classList.remove('hidden'); $('resumeBtn').focus();
+}
+function resumeGame(){
+  if(!game.paused) return;
+  game.paused=false; $('pauseScreen').classList.add('hidden'); $('settingsScreen').classList.add('hidden');
+  if(sfx.ctx) sfx.ctx.resume();
+}
+function quitToMenu(){
+  if(game.state==='intro'){ scene.remove(intro.heli.g); intro.heli=null; $('cine').classList.add('hidden'); $('cineSub').classList.remove('show');
+    M.body.rotation.x=0; M.body.position.y=0; }
+  game.paused=false; game.state='start';
+  if(sfx.ctx) sfx.ctx.resume();
+  restoreCity();
+  $('pauseScreen').classList.add('hidden'); $('hud').style.display='none'; $('stomp').style.display='none';
+  const b=+(store.get('city-smash-best')||0); $('bestStart').textContent='Your best: '+b; $('bestStart').classList.toggle('hidden',!b);
+  showStartLevel(); $('startScreen').classList.remove('hidden'); $('startBtn').focus();
+}
+$('pauseBtn').addEventListener('click',pauseGame);
+$('resumeBtn').addEventListener('click',resumeGame);
+$('retryBtn').addEventListener('click',()=>{ game.paused=false; if(sfx.ctx) sfx.ctx.resume(); resetGame(); });
+$('quitBtn').addEventListener('click',quitToMenu);
+// pause automatically when the app goes to the background or the tab is hidden
+document.addEventListener('visibilitychange',()=>{ if(document.hidden) pauseGame(); });
+addEventListener('blur',()=>{ if(game.state==='play') pauseGame(); });
+addEventListener('keydown',e=>{
+  if(e.key==='Escape' || e.key==='p' || e.key==='P'){
+    if(!$('settingsScreen').classList.contains('hidden')) closeSettings();
+    else if(game.paused) resumeGame(); else pauseGame();
+  }
+});
+
+/* ---------- settings screen ---------- */
+function setToggle(el,on){ el.setAttribute('aria-pressed',on); el.textContent=on?'On':'Off'; }
+function openSettings(fromPause){
+  $('volRange').value=settings.vol; $('volVal').textContent=settings.vol+'%';
+  setToggle($('vibBtn'),settings.vib); setToggle($('introBtn'),settings.intro);
+  $('resetRow').classList.toggle('hidden',!!fromPause); // no wiping progress in the middle of a level
+  $('resetNote').textContent=''; $('resetBtn').classList.remove('confirm'); $('resetBtn').textContent='Reset progress';
+  $('settingsScreen').classList.remove('hidden'); $('settingsDone').focus();
+}
+function closeSettings(){
+  $('settingsScreen').classList.add('hidden');
+  (game.paused ? $('resumeBtn') : $('settingsBtn')).focus();
+}
+$('settingsBtn').addEventListener('click',()=>openSettings(false));
+$('pauseSettingsBtn').addEventListener('click',()=>openSettings(true));
+$('settingsDone').addEventListener('click',closeSettings);
+$('volRange').addEventListener('input',e=>{
+  settings.vol=+e.target.value; $('volVal').textContent=settings.vol+'%';
+  sfx.volume=settings.vol/100; sfx.apply(); saveSettings();
+});
+$('volRange').addEventListener('change',()=>{ sfx.init(); sfx.hit(); });
+$('vibBtn').addEventListener('click',()=>{ settings.vib=!settings.vib; setToggle($('vibBtn'),settings.vib); saveSettings(); buzz(80); });
+$('introBtn').addEventListener('click',()=>{ settings.intro=!settings.intro; setToggle($('introBtn'),settings.intro); saveSettings(); });
+$('resetBtn').addEventListener('click',()=>{
+  const b=$('resetBtn');
+  if(!b.classList.contains('confirm')){ // ask twice so it can't happen by accident
+    b.classList.add('confirm'); b.textContent='Tap again to reset';
+    $('resetNote').textContent='This sets you back to Level 1 and clears your best score.';
+    clearTimeout(b._t); b._t=setTimeout(()=>{ b.classList.remove('confirm'); b.textContent='Reset progress'; $('resetNote').textContent=''; },4000);
+    return;
+  }
+  clearTimeout(b._t); b.classList.remove('confirm'); b.textContent='Reset progress';
+  store.set('city-smash-level',1); store.set('city-smash-best','');
+  game.level=1; showStartLevel(); $('bestStart').classList.add('hidden');
+  $('resetNote').textContent='Progress reset. Back to Level 1!';
+});
 $('againBtn').addEventListener('click',()=>{
   // ignore taps unless the end screen is really showing (e.g. a double tap on "Try Again")
   if(game.state!=='over' || $('endScreen').classList.contains('hidden')) return;
@@ -1114,8 +1257,8 @@ function updateIntro(dt){
   M.armL.rotation.x=M.armR.rotation.x=(moving?-Math.sin(ph)*0.5:0)-2.4*roar+Math.sin(t*30)*0.15*roar;
   M.armL.rotation.z=-0.5*roar; M.armR.rotation.z=0.5*roar;
   M.body.rotation.x=-0.25*roar;
-  if(t>3.45 && intro.roared<1){ intro.roared=1; sfx.roar(); addShake(0.6); }
-  if(t>9.45 && intro.roared<2){ intro.roared=2; sfx.roar(); addShake(0.45); }
+  if(t>3.45 && intro.roared<1){ intro.roared=1; sfx.roar(); addShake(0.6); buzz(140); }
+  if(t>9.45 && intro.roared<2){ intro.roared=2; sfx.roar(); addShake(0.45); buzz(110); }
   headV.set(mp.x,4.2*v,mp.z);
   // --- helicopter
   intro.heli.g.lookAt(t<11?mp.x:heliP.x+(heliP.x-mp.x),heliP.y,t<11?mp.z:heliP.z+(heliP.z-mp.z)); intro.heli.g.rotateX(0.15);
@@ -1167,12 +1310,14 @@ let last=performance.now();
 function loop(now){
   requestAnimationFrame(loop);
   const dt=Math.min(0.05,(now-last)/1000); last=now;
-  if(game.state==='play') updatePlay(dt);
-  else if(game.state==='start') updateIdle(dt);
-  else if(game.state==='intro') updateIntro(dt);
-  else if(game.won) updateCelebrate(dt);
-  updateWorld(dt);
-  confetti.update(dt);
+  if(!game.paused){
+    if(game.state==='play') updatePlay(dt);
+    else if(game.state==='start') updateIdle(dt);
+    else if(game.state==='intro') updateIntro(dt);
+    else if(game.won) updateCelebrate(dt);
+    updateWorld(dt);
+    confetti.update(dt);
+  }
   renderer.render(scene,camera);
 }
 requestAnimationFrame(loop);
