@@ -768,7 +768,7 @@ function endGame(reason){
   $('endTitle').textContent=titles[reason];
   $('endScore').textContent=game.score;
   hideMarkers(); $('combo').classList.add('hidden');
-  $('pct').textContent=left+(left===1?' building left':' left'); $('score').textContent=game.score;
+  $('pct').textContent=game.mode==='showcase' ? showcase.completed+' / '+showcase.targets.length+' towers' : left+(left===1?' building left':' left'); $('score').textContent=game.score;
   const spare=Math.ceil(game.time);
   const stars=reason==='showcase'
     ? 1+(showcase.elapsed<=45)+(showcase.elapsed<=30)
@@ -823,7 +823,7 @@ function startShowcase(){
   $('lvl').textContent='AUTO RAMPAGE';
   $('pct').textContent='0 / '+showcase.targets.length+' towers';
   $('time').textContent='1:30';
-  setShowcaseCue('ACT I · THREE TOWERS MARKED · '+theme.name.toUpperCase());
+  setShowcaseCue('ACT I · '+showcase.targets.length+' TOWER'+(showcase.targets.length===1?'':'S')+' MARKED · '+theme.name.toUpperCase());
 }
 function markShowcaseTarget(b){
   if(!showcase.active||!showcase.targets.includes(b)||b.showcaseCounted) return;

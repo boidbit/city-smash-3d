@@ -22,7 +22,7 @@ All of these numbers are constants near the top of the `levels` section in `inde
 
 ## Auto Rampage showcase
 
-**Auto Rampage** is a short, replayable kaiju challenge on the City Smash start screen. It resets to a fresh Level 1 city, marks up to three generated buildings nearest the central park, and drives the monster toward each one to smash it. The city theme, building heights, and layout still come from the normal world generator.
+**Auto Rampage** is a short, replayable kaiju challenge on the City Smash start screen. It resets to a fresh Level 1 city, marks up to three generated buildings nearest the central park, and drives the monster toward each one to smash it. Building heights and lot layout still come from the normal generator, and the city theme follows the campaign's usual level theme.
 
 The run opens on an aerial establishing shot, switches to a close follow camera, cuts in on each tower collapse, then circles the monster for the result. The HUD tracks towers, time, and monster power; the results screen shows completion time, score, stars, and the showcase best. A route recovery hit protects the automated run from awkward generated layouts, and an empty generated city falls back to the campaign.
 
