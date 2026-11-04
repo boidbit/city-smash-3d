@@ -73,6 +73,8 @@ h2{margin:0 0 6px;font-size:30px;line-height:1.1;font-weight:800}
 a.btn{display:inline-block;text-decoration:none}
 .btn.alt{background:var(--lime)}
 .mode{margin:14px 0 0;font-size:14px!important;color:var(--muted)}
+#showcaseCue{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 28px);z-index:8;transform:translateX(-50%);max-width:calc(100vw - 28px);white-space:normal;text-align:center;pointer-events:none;font-size:18px;line-height:1.2;padding:6px 14px;background:var(--haldi)}
+.card{max-height:calc(100vh - 40px);overflow-y:auto}
 
 .pop{position:fixed;left:0;top:0;font-weight:800;font-size:22px;color:#FFF3C4;white-space:nowrap;
   -webkit-text-stroke:1.5px var(--ink);text-shadow:0 3px 0 var(--ink);pointer-events:none;animation:rise .9s ease-out forwards}
@@ -154,6 +156,7 @@ a.btn{display:inline-block;text-decoration:none}
 <div id="pops"></div>
 <div id="arrows"></div>
 <div id="combo" class="hidden"><b id="comboX">COMBO x2!</b><span id="comboPts">+0</span></div>
+<div id="showcaseCue" class="chip hidden" role="status" aria-live="polite"></div>
 
 <div class="overlay" id="startScreen">
   <div class="card">
@@ -168,6 +171,8 @@ a.btn{display:inline-block;text-decoration:none}
     <p><button class="link hidden" id="restartBtn">Start over from Level 1</button></p>
     <p class="mode">Or try the endless runner mode:</p>
     <a class="btn alt" id="dashBtn" href="monster-dash/index.html">Play Monster Dash</a>
+    <p class="mode">Or watch the monster take on a short automated challenge:</p>
+    <button class="btn" id="showcaseBtn">Watch Auto Rampage</button>
   </div>
 </div>
 
@@ -180,6 +185,7 @@ a.btn{display:inline-block;text-decoration:none}
     <p id="endPct"></p>
     <p id="endBest"></p>
     <button class="btn" id="againBtn">Play Again</button>
+    <p><button class="link" id="menuBtn">Mode Select</button></p>
     <p><a class="link" href="monster-dash/index.html">Switch to Monster Dash</a></p>
   </div>
 </div>
@@ -627,7 +633,9 @@ function destroyHeli(h){
 }
 
 /* ---------- game state ---------- */
-const game={state:'start',level:1,builtLevel:0,time:90,maxTime:90,power:1,score:0,hp:100,size:1,vis:1,destroyed:0,combo:1,lastKill:-9,cd:0,hop:0,squash:0,heliT:0,shake:0,zoom:0,ended:0,toasted:{}};
+const game={state:'start',mode:'campaign',level:1,builtLevel:0,time:90,maxTime:90,power:1,score:0,hp:100,size:1,vis:1,destroyed:0,combo:1,lastKill:-9,cd:0,hop:0,squash:0,heliT:0,shake:0,zoom:0,ended:0,toasted:{}};
+const SHOWCASE_TARGETS=3;
+const showcase={active:false,targets:[],targetIndex:0,completed:0,elapsed:0,beat:'idle',beatTimer:0,focus:null,lastPos:new THREE.Vector3(),stuck:0,assistTimer:0,victoryCam:0};
 const camBase=new THREE.Vector3(60,45,60), shakeV=new THREE.Vector3(), lookAt=new THREE.Vector3();
 let orbitA=0;
 
@@ -689,7 +697,8 @@ function collapse(b){
   for(const th of [1.5,2,2.4]) if(growth>=th && !game.toasted[th]){ game.toasted[th]=1; toast('The monster grew bigger!'); }
   const sizeFactor=clamp(b.h/18,0,1);
   addShake(0.14+sizeFactor*0.32); addZoom(0.12+sizeFactor*0.38); sfx.pop(sizeFactor);
-  if(game.destroyed>=buildings.length) endGame('all');
+  if(game.mode==='showcase') markShowcaseTarget(b);
+  if(game.state==='play' && game.destroyed>=buildings.length) endGame('all');
 }
 function hurt(n){
   if(game.state!=='play') return;
@@ -716,11 +725,15 @@ function land(){
   game.squash=0.18; addShake(0.55); sfx.thud(clamp((game.size-1)/1.4,0,1));
 }
 
-function resetGame(){
+function resetGame(mode='campaign'){
+  game.mode=mode;
+  Object.assign(showcase,{active:mode==='showcase',targets:[],targetIndex:0,completed:0,elapsed:0,beat:mode==='showcase'?'establish':'idle',beatTimer:mode==='showcase'?2.4:0,focus:null,stuck:0,assistTimer:0,victoryCam:0});
+  showcase.lastPos.set(0,0,0);
   if(game.builtLevel!==game.level){ buildCity(game.level); game.builtLevel=game.level; }
-  const power=monsterScale(game.level), maxTime=levelTime(game.level);
-  Object.assign(game,{state:'play',time:maxTime,maxTime,power,score:0,hp:100,size:power,vis:power,destroyed:0,combo:1,comboTotal:0,lastKill:-9,cd:0,hop:0,squash:0,heliT:4,shake:0,zoom:0,toasted:{},won:false,lastTick:0});
-  for(const b of buildings){ b.state='alive'; b.hp=b.maxHp; b.evac=0; b.smokeT=0; b.g.visible=true; b.g.position.set(b.x,0.3,b.z); b.g.rotation.set(0,0,0); b.pile.visible=false; }
+  const power=mode==='showcase'?Math.max(monsterScale(game.level),1.45):monsterScale(game.level);
+  const maxTime=mode==='showcase'?90:levelTime(game.level);
+  Object.assign(game,{state:'play',mode,time:maxTime,maxTime,power,score:0,hp:100,size:power,vis:power,destroyed:0,combo:1,comboTotal:0,lastKill:-9,cd:0,hop:0,squash:0,heliT:4,shake:0,zoom:0,toasted:{},won:false,lastTick:0});
+  for(const b of buildings){ b.state='alive'; b.hp=b.maxHp; b.evac=0; b.smokeT=0; b.g.visible=true; b.g.position.set(b.x,0.3,b.z); b.g.rotation.set(0,0,0); b.pile.visible=false; b.showcaseCounted=false; }
   for(const h of helis) scene.remove(h.g); helis=[];
   for(const p of debris){ p.m.visible=false; p.life=0; }
   for(const b of bullets){ b.m.visible=false; b.life=0; }
@@ -731,38 +744,146 @@ function resetGame(){
   M.root.position.set(0,0,0); M.root.rotation.y=0; M.root.scale.setScalar(1);
   M.armL.rotation.z=M.armR.rotation.z=0;
   camBase.set(0,16,16);
-  $('hud').style.display='flex'; $('stomp').style.display='block';
+  $('hud').style.display='flex'; $('stomp').style.display=mode==='showcase'?'none':'block';
   $('startScreen').classList.add('hidden'); $('endScreen').classList.add('hidden');
-  $('lvl').textContent='Level '+game.level;
-  toast('Level '+game.level+' · '+theme.name);
+  $('lvl').textContent=mode==='showcase'?'AUTO RAMPAGE':'Level '+game.level;
+  if(mode==='showcase') setShowcaseCue('ACT I · THE CITY LIGHTS UP');
+  else { $('showcaseCue').classList.add('hidden'); $('showcaseCue').classList.remove('show'); }
+  toast(mode==='showcase'?'Auto Rampage · '+theme.name:'Level '+game.level+' · '+theme.name);
 }
 function endGame(reason){
   if(game.state!=='play') return;
   game.state='over';
   $('stomp').style.display='none'; $('joy').style.display='none'; joy.id=null;
-  const won=reason==='all';
-  const titles={time:"Time's up!",hp:'The monster went down!',all:'Level '+game.level+' complete!'};
+  $('showcaseCue').classList.add('hidden'); $('showcaseCue').classList.remove('show');
+  const won=reason==='all'||reason==='showcase';
+  const titles={time:"Time's up!",hp:'The monster went down!',all:'Level '+game.level+' complete!',showcase:'Showcase complete!'};
   const pct=Math.round(game.destroyed/buildings.length*100), left=buildings.length-game.destroyed;
   game.won=won;
-  // decide right now which level the end-screen button leads to: the next one only on a real win
-  game.nextLevel = won ? game.level+1 : game.level;
-  if(won) store.set('city-smash-level',Math.max(game.level+1,+(store.get('city-smash-level')||1)));
-  const best=Math.max(game.score, +(store.get('city-smash-best')||0)); store.set('city-smash-best',best);
+  if(game.mode==='showcase'&&!won) showcase.active=false;
+  game.nextLevel = reason==='all' ? game.level+1 : game.level;
+  if(reason==='all') store.set('city-smash-level',Math.max(game.level+1,+(store.get('city-smash-level')||1)));
+  const bestKey=game.mode==='showcase'?'city-smash-showcase-best':'city-smash-best';
+  const best=Math.max(game.score,+(store.get(bestKey)||0)); store.set(bestKey,best);
   $('endTitle').textContent=titles[reason];
   $('endScore').textContent=game.score;
   hideMarkers(); $('combo').classList.add('hidden');
   $('pct').textContent=left+(left===1?' building left':' left'); $('score').textContent=game.score;
-  const spare=Math.ceil(game.time), stars=won ? 1+(spare>=8)+(spare>=15) : 0;
+  const spare=Math.ceil(game.time);
+  const stars=reason==='showcase'
+    ? 1+(showcase.elapsed<=45)+(showcase.elapsed<=30)
+    : won ? 1+(spare>=8)+(spare>=15) : 0;
   const starEls=$('stars').children;
   for(let i=0;i<3;i++){ starEls[i].classList.toggle('on',i<stars); starEls[i].style.animationDelay=(0.25+i*0.35)+'s'; }
   $('stars').classList.toggle('hidden',!won); $('stars').setAttribute('aria-label',stars+' of 3 stars');
   if(won){ game.celebT=0; sfx.win(); confetti.start(); }
-  $('endPct').textContent = won
-    ? 'Every building smashed with '+Math.ceil(game.time)+'s to spare!'
-    : 'Only '+left+' building'+(left===1?'':'s')+' left! ('+pct+'% destroyed)';
-  $('againBtn').textContent = won ? 'Next Level' : 'Try Again';
-  $('endBest').textContent = game.score>=best && game.score>0 ? 'New best score!' : 'Best: '+best;
+  if(game.mode==='showcase'){
+    const elapsed=Math.ceil(showcase.elapsed);
+    $('endPct').textContent=reason==='showcase'
+      ? showcase.completed+' of '+showcase.targets.length+' marked towers smashed in '+elapsed+'s.'
+      : 'Auto-player reached '+showcase.completed+' of '+showcase.targets.length+' marked towers.';
+    $('againBtn').textContent='Run It Again';
+    $('endBest').textContent=game.score>=best && game.score>0 ? 'New showcase best!' : 'Showcase best: '+best;
+  }else{
+    $('endPct').textContent = won
+      ? 'Every building smashed with '+Math.ceil(game.time)+'s to spare!'
+      : 'Only '+left+' building'+(left===1?'':'s')+' left! ('+pct+'% destroyed)';
+    $('againBtn').textContent = won ? 'Next Level' : 'Try Again';
+    $('endBest').textContent = game.score>=best && game.score>0 ? 'New best score!' : 'Best: '+best;
+  }
   setTimeout(()=>{ $('endScreen').classList.remove('hidden'); $('againBtn').focus(); }, won?2000:900);
+}
+
+function setShowcaseCue(message){
+  const cue=$('showcaseCue');
+  cue.textContent=message;
+  cue.classList.remove('hidden');
+  cue.classList.add('show');
+}
+function startShowcase(){
+  const returnLevel=Math.max(1,Math.floor(+(store.get('city-smash-level')||game.level||1))||1);
+  game.level=1;
+  resetGame('showcase');
+  showcase.targets=buildings.filter(b=>b.state==='alive')
+    .slice().sort((a,b)=>Math.hypot(a.x,a.z)-Math.hypot(b.x,b.z))
+    .slice(0,Math.min(SHOWCASE_TARGETS,buildings.length));
+  if(!showcase.targets.length){
+    showcase.active=false;
+    game.level=returnLevel;
+    resetGame('campaign');
+    toast('Showcase unavailable · campaign ready');
+    return;
+  }
+  showcase.active=true;
+  showcase.targets.forEach(b=>{ b.showcaseCounted=false; });
+  showcase.targetIndex=0; showcase.completed=0; showcase.elapsed=0;
+  showcase.beat='establish'; showcase.beatTimer=2.4; showcase.focus=null;
+  showcase.lastPos.copy(M.root.position); showcase.stuck=0; showcase.assistTimer=0; showcase.victoryCam=0;
+  $('stomp').style.display='none'; $('joy').style.display='none';
+  $('lvl').textContent='AUTO RAMPAGE';
+  $('pct').textContent='0 / '+showcase.targets.length+' towers';
+  $('time').textContent='1:30';
+  setShowcaseCue('ACT I · THREE TOWERS MARKED · '+theme.name.toUpperCase());
+}
+function markShowcaseTarget(b){
+  if(!showcase.active||!showcase.targets.includes(b)||b.showcaseCounted) return;
+  b.showcaseCounted=true; showcase.completed++;
+  while(showcase.targetIndex<showcase.targets.length && showcase.targets[showcase.targetIndex].state!=='alive') showcase.targetIndex++;
+  showcase.focus=b;
+  $('pct').textContent=showcase.completed+' / '+showcase.targets.length+' towers';
+  if(showcase.completed>=showcase.targets.length){ finishShowcase(); return; }
+  showcase.beat='impact'; showcase.beatTimer=1.25;
+  setShowcaseCue('LANDMARK DOWN · '+showcase.completed+' / '+showcase.targets.length);
+}
+function finishShowcase(){
+  if(!showcase.active) return;
+  showcase.active=false; showcase.beat='victory'; showcase.beatTimer=0;
+  game.showcaseDuration=showcase.elapsed;
+  endGame('showcase');
+}
+function updateShowcaseControl(dt){
+  if(!showcase.active) return {x:0,z:0};
+  showcase.elapsed+=dt;
+  showcase.assistTimer=Math.max(0,showcase.assistTimer-dt);
+  if(showcase.beat==='establish'){
+    showcase.beatTimer-=dt;
+    if(showcase.beatTimer<=0){
+      showcase.beat='travel';
+      setShowcaseCue('TARGET 1 / '+showcase.targets.length+' · THE MONSTER IS ON THE MOVE');
+    }
+    return {x:0,z:0};
+  }
+  if(showcase.beat==='impact'){
+    showcase.beatTimer-=dt;
+    if(showcase.beatTimer<=0){
+      showcase.beat='travel';
+      const target=showcase.targets[showcase.targetIndex];
+      if(target) setShowcaseCue('TARGET '+(showcase.targetIndex+1)+' / '+showcase.targets.length+' · LOCKED');
+    }
+    return {x:0,z:0};
+  }
+  while(showcase.targetIndex<showcase.targets.length && showcase.targets[showcase.targetIndex].state!=='alive') showcase.targetIndex++;
+  if(showcase.targetIndex>=showcase.targets.length){ finishShowcase(); return {x:0,z:0}; }
+  const target=showcase.targets[showcase.targetIndex], mp=M.root.position;
+  const qx=clamp(mp.x,target.x-target.w/2,target.x+target.w/2);
+  const qz=clamp(mp.z,target.z-target.d/2,target.z+target.d/2);
+  const edgeDistance=Math.hypot(mp.x-qx,mp.z-qz);
+  const dx=target.x-mp.x, dz=target.z-mp.z, distance=Math.hypot(dx,dz)||1;
+  const reach=3.5*game.size+1.5;
+  if(edgeDistance<=reach*0.78){
+    showcase.stuck=0; showcase.lastPos.copy(mp);
+    if(game.cd<=0&&game.hop<=0) stomp();
+    return {x:0,z:0};
+  }
+  if(mp.distanceTo(showcase.lastPos)>0.08){ showcase.stuck=0; showcase.lastPos.copy(mp); }
+  else showcase.stuck+=dt;
+  if(showcase.stuck>=7.5&&showcase.assistTimer<=0){
+    showcase.stuck=0; showcase.assistTimer=2.2;
+    damage(target,Math.max(target.hp*0.55,30));
+    setShowcaseCue('AUTO SMASH · CLEARING A JAMMED ROUTE');
+    if(target.state!=='alive') return {x:0,z:0};
+  }
+  return {x:dx/distance,z:dz/distance};
 }
 
 /* ---------- win celebration ---------- */
@@ -793,11 +914,29 @@ function updateCelebrate(dt){
   M.root.rotation.y+=dt*(reduceMotion?1.5:4);
   M.armL.rotation.x=M.armR.rotation.x=-2.7+Math.sin(t*14)*0.35;
   M.legL.rotation.x=Math.sin(t*14)*0.3; M.legR.rotation.x=-Math.sin(t*14)*0.3;
+  if(game.mode==='showcase'){
+    showcase.victoryCam+=dt;
+    const a=showcase.victoryCam*0.7;
+    camBase.lerp(tmp.set(M.root.position.x+Math.sin(a)*17,11,M.root.position.z+Math.cos(a)*17),1-Math.exp(-dt*1.4));
+    lookAt.set(M.root.position.x,2.2*game.vis,M.root.position.z);
+  }
 }
 
 /* ---------- last-buildings helpers ---------- */
 function hideMarkers(){ for(const m of markers) m.visible=false; for(const a of arrowEls) a.classList.add('hidden'); }
 function updateMarkers(left,now){
+  if(game.mode==='showcase'){
+    let i=0;
+    for(const b of showcase.targets){
+      const m=markers[i++];
+      if(!m) continue;
+      if(b.state!=='alive'){ m.visible=false; continue; }
+      m.visible=true; m.position.set(b.x,b.h+2.4+Math.abs(Math.sin(now*4+i))*0.8,b.z); m.rotation.y=now*2;
+    }
+    for(;i<markers.length;i++) markers[i].visible=false;
+    for(const a of arrowEls) a.classList.add('hidden');
+    return;
+  }
   const show = left<=8 || (game.time<=15 && left<=15);
   let i=0;
   if(show) for(const b of buildings){
@@ -841,11 +980,20 @@ addEventListener('keydown',e=>{ keys.add(e.key.toLowerCase()); if(e.code==='Spac
 addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));
 addEventListener('contextmenu',e=>e.preventDefault());
 $('mute').addEventListener('click',()=>{ sfx.muted=!sfx.muted; $('mute').textContent=sfx.muted?'🔇':'🔊'; });
-$('startBtn').addEventListener('click',()=>{ sfx.init(); if(!introSeen) startIntro(); else resetGame(); });
+$('startBtn').addEventListener('click',()=>{ sfx.init(); if(!introSeen) startIntro(); else resetGame('campaign'); });
+$('showcaseBtn').addEventListener('click',()=>{ sfx.init(); startShowcase(); });
 $('againBtn').addEventListener('click',()=>{
   // ignore taps unless the end screen is really showing (e.g. a double tap on "Try Again")
   if(game.state!=='over' || $('endScreen').classList.contains('hidden')) return;
-  sfx.init(); game.level=game.nextLevel; resetGame();
+  if(game.mode==='showcase'){ startShowcase(); return; }
+  sfx.init(); game.level=game.nextLevel; resetGame('campaign');
+});
+$('menuBtn').addEventListener('click',()=>{
+  if(game.state!=='over') return;
+  showcase.active=false; game.mode='campaign'; game.won=false;
+  confetti.stop(); $('endScreen').classList.add('hidden'); $('showcaseCue').classList.add('hidden'); $('showcaseCue').classList.remove('show');
+  game.level=Math.max(1,Math.floor(+(store.get('city-smash-level')||1))||1);
+  game.state='start'; $('startScreen').classList.remove('hidden'); showStartLevel();
 });
 $('restartBtn').addEventListener('click',()=>{ store.set('city-smash-level',1); game.level=1; showStartLevel(); });
 const best0=store.get('city-smash-best'); if(best0){ $('bestStart').textContent='Your best: '+best0; $('bestStart').classList.remove('hidden'); }
@@ -858,6 +1006,7 @@ function showStartLevel(){
 }
 game.level=Math.max(1,Math.floor(+(store.get('city-smash-level')||1))||1);
 showStartLevel();
+if(new URLSearchParams(location.search).get('mode')==='showcase') startShowcase();
 
 /* ---------- update ---------- */
 const tmp=new THREE.Vector3();
@@ -870,10 +1019,14 @@ function updatePlay(dt){
   game.vis += (game.size-game.vis)*Math.min(1,dt*3);
 
   let ix=joy.x, iz=joy.y;
-  if(keys.has('w')||keys.has('arrowup')) iz-=1;
-  if(keys.has('s')||keys.has('arrowdown')) iz+=1;
-  if(keys.has('a')||keys.has('arrowleft')) ix-=1;
-  if(keys.has('d')||keys.has('arrowright')) ix+=1;
+  if(game.mode==='showcase'){
+    const steer=updateShowcaseControl(dt); ix=steer.x; iz=steer.z;
+  }else{
+    if(keys.has('w')||keys.has('arrowup')) iz-=1;
+    if(keys.has('s')||keys.has('arrowdown')) iz+=1;
+    if(keys.has('a')||keys.has('arrowleft')) ix-=1;
+    if(keys.has('d')||keys.has('arrowright')) ix+=1;
+  }
   const len=Math.hypot(ix,iz); if(len>1){ ix/=len; iz/=len; }
   const speed=6+game.size*2.2, moving=len>0.08;
   if(moving){
@@ -952,18 +1105,31 @@ function updatePlay(dt){
   // camera
   let k=0.85+game.vis*0.4; if(innerWidth<innerHeight) k*=1.25;
   k *= 1 - game.zoom*0.22;
-  camBase.lerp(tmp.set(mp.x,12*k+2,mp.z+12*k),1-Math.exp(-dt*4));
-  lookAt.set(mp.x,2.2*game.vis,mp.z-1);
+  if(game.mode==='showcase'&&showcase.beat==='establish'){
+    const a=showcase.elapsed*0.42;
+    camBase.lerp(tmp.set(Math.sin(a)*25,17,Math.cos(a)*25),1-Math.exp(-dt*1.2));
+    lookAt.set(0,1.8,0);
+  }else if(game.mode==='showcase'&&showcase.beat==='impact'&&showcase.focus){
+    const b=showcase.focus;
+    camBase.lerp(tmp.set(b.x+9,b.h+8,b.z+9),1-Math.exp(-dt*2.5));
+    lookAt.set(b.x,b.h*0.55,b.z);
+  }else{
+    camBase.lerp(tmp.set(mp.x,12*k+2,mp.z+12*k),1-Math.exp(-dt*4));
+    lookAt.set(mp.x,2.2*game.vis,mp.z-1);
+  }
 
   // hud
   const s=Math.ceil(game.time), mm=Math.floor(s/60), ss=String(s%60).padStart(2,'0');
   const left=buildings.length-game.destroyed;
-  const hudKey=game.score+'|'+s+'|'+Math.round(game.hp)+'|'+left;
+  const hudKey=game.mode+'|'+game.score+'|'+s+'|'+Math.round(game.hp)+'|'+left+'|'+showcase.completed;
   if(hudKey!==lastHud){
     lastHud=hudKey;
     $('score').textContent=game.score; $('time').textContent=mm+':'+ss; $('time').classList.toggle('low',s<=10);
     $('hpfill').style.width=game.hp+'%'; $('hpfill').classList.toggle('low',game.hp<30);
-    $('pct').textContent=left+(left===1?' building left':' left');
+    $('pct').textContent=game.mode==='showcase'
+      ? showcase.completed+' / '+showcase.targets.length+' towers'
+      : left+(left===1?' building left':' left');
+    $('lvl').textContent=game.mode==='showcase'?'AUTO RAMPAGE':'Level '+game.level;
   }
   if(s<=10 && s>0 && s!==game.lastTick && game.time<game.maxTime){
     game.lastTick=s; sfx.tick(s<=3);
