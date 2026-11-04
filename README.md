@@ -20,6 +20,14 @@ All of these numbers are constants near the top of the `levels` section in `inde
 
 **[Privacy policy](https://boidbit.github.io/city-smash-3d/privacy.html)** (use this URL in Play Console)
 
+## Auto Rampage showcase
+
+**Auto Rampage** is a short, replayable kaiju challenge on the City Smash start screen. It resets to a fresh Level 1 city, marks up to three generated buildings nearest the central park, and drives the monster toward each one to smash it. Building heights and lot layout still come from the normal generator, and the city theme follows the campaign's usual level theme.
+
+The run opens on an aerial establishing shot, switches to a close follow camera, cuts in on each tower collapse, then circles the monster for the result. The HUD tracks towers, time, and monster power; the results screen shows completion time, score, stars, and the showcase best. A route recovery hit protects the automated run from awkward generated layouts, and an empty generated city falls back to the campaign.
+
+Choose **Watch Auto Rampage** from the start screen, or launch it directly for browser automation with `?mode=showcase` (for example, `https://boidbit.github.io/city-smash-3d/?mode=showcase`). The Android build workflow copies the updated main page into `www/index.html`.
+
 ## Monster Dash mode
 
 The start screen also offers **Monster Dash**, an endless 3-lane runner with the same monster, city and helicopters. Swipe (or A/D, ←/→) to change lanes and SMASH! towers and helicopters. See [`monster-dash/README.md`](monster-dash/README.md).
